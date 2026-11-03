@@ -16,17 +16,12 @@ dotenv.config({
 });
 
 const app = express();
-const frontendUrl = (process.env.Frontend_url || "http://localhost:5173")
-  .trim()
-  .replace(/\/+$/, "");
-const corsOptions = {
-  origin: frontendUrl,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-  optionsSuccessStatus: 204,
-};
-
-app.use(cors(corsOptions));
+app.use(
+  cors({
+    origin: process.env.FRONTEND_URL,
+    credentials: true,
+  })
+);
 app.options(/.*/, cors(corsOptions));
 
 app.use(express.json());
