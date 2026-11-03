@@ -39,7 +39,7 @@ app.use("/api/posts", postRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/notifications", notificationRoutes);
 
-const PORT = process.env.PORT || 5000;
+const PORT =  5000;
 
 connectDB()
   .then(() => {
