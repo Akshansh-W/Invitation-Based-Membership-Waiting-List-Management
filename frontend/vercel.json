@@ -1,0 +1,10 @@
+{
+  "rewrites": [
+    { "source": "/register", "destination": "/index.html" },
+    { "source": "/login", "destination": "/index.html" },
+    { "source": "/admin/login", "destination": "/index.html" },
+    { "source": "/admin/dashboard/:path*", "destination": "/index.html" },
+    { "source": "/applyformembership", "destination": "/index.html" },
+    { "source": "/application-status", "destination": "/index.html" }
+  ]
+}
