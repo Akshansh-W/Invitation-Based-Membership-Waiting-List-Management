@@ -22,7 +22,6 @@ app.use(
     credentials: true,
   })
 );
-app.options(/.*/, cors(corsOptions));
 
 app.use(express.json());
 
