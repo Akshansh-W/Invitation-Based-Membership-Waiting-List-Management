@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import NonRegisteredUserHeader from "@/components/HomeComponents/NonRegisteredUserHeader.jsx";
 import RegisteredUserHeader from "@/components/HomeComponents/RegisteredUserHeader.jsx";
-import PostCard from "@/components/HomeComponents/PostCard.jsx";
+import PostCard from "@/components/HomeComponents/Postcard.jsx";
 import backendUrl from "@/config/api.js";
 
 export default function HomePage() {
