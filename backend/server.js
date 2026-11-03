@@ -15,13 +15,72 @@ dotenv.config({
   path: fileURLToPath(new URL("./.env", import.meta.url)),
 });
 
+const productionFrontendOrigin =
+  "https://invitation-based-membership-waiting.vercel.app";
+const localFrontendOrigin = "http://localhost:5173";
+
+function normalizeOrigin(value) {
+  if (typeof value !== "string" || !value.trim()) return null;
+
+  try {
+    const url = new URL(value.trim());
+    if (
+      !["http:", "https:"].includes(url.protocol) ||
+      url.username ||
+      url.password ||
+      (url.pathname !== "/" && url.pathname !== "") ||
+      url.search ||
+      url.hash
+    ) {
+      return null;
+    }
+
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+const configuredFrontendOrigin = normalizeOrigin(
+  process.env.FRONTEND_URL || process.env.Frontend_url
+) || productionFrontendOrigin;
+const allowedOrigins = new Set([
+  configuredFrontendOrigin,
+  productionFrontendOrigin,
+  localFrontendOrigin,
+]);
+
 const app = express();
-app.use(
-  cors({
-    origin: process.env.FRONTEND_URL,
-    credentials: true,
-  })
-);
+const corsOptions = {
+  origin(origin, callback) {
+    if (!origin) return callback(null, true);
+
+    const normalizedOrigin = normalizeOrigin(origin);
+    if (normalizedOrigin && allowedOrigins.has(normalizedOrigin)) {
+      return callback(null, true);
+    }
+
+    console.warn("[CORS] Rejected origin", {
+      origin,
+      configuredAllowedOrigin: configuredFrontendOrigin,
+    });
+    return callback(null, false);
+  },
+  credentials: true,
+  methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  optionsSuccessStatus: 204,
+  maxAge: 86400,
+};
+
+app.use((req, _res, next) => {
+  console.info("[CORS] Request origin", {
+    origin: req.get("Origin") || null,
+    configuredAllowedOrigin: configuredFrontendOrigin,
+  });
+  next();
+});
+app.use(cors(corsOptions));
 
 app.use(express.json());
 
