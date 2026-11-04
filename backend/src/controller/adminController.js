@@ -34,6 +34,14 @@ export async function listMembers(req, res) {
     const invitationOwners = new Map(
       invitations.map((invitation) => [invitation._id, invitation.created_by])
     );
+    const referralCodeCounts = new Map();
+    for (const invitation of invitations) {
+      referralCodeCounts.set(
+        invitation.created_by,
+        (referralCodeCounts.get(invitation.created_by) || 0) + 1
+      );
+    }
+
     const redemptions = invitations.length
       ? await InvitationRedemption.find({
           invitation_id: { $in: invitations.map((invitation) => invitation._id) },
@@ -57,6 +65,7 @@ export async function listMembers(req, res) {
         email: member.email_normalized,
         membership_status: member.membership_status,
         registered_at: member.created_at,
+        referral_codes: referralCodeCounts.get(member._id) || 0,
         referrals_used: referralCounts.get(member._id) || 0,
       })),
     });

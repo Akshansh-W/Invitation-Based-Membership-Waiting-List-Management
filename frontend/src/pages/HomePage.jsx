@@ -78,6 +78,7 @@ export default function HomePage() {
   }, []);
 
   const isRegistered = Boolean(user);
+  const isMember = user?.role === "USER" && user?.membership_status === "MEMBER";
 
   return (
     <div className="min-h-screen bg-green-50">
@@ -143,7 +144,14 @@ export default function HomePage() {
             ) : posts.length === 0 ? (
               <p className="col-span-full py-10 text-center text-gray-500">No artwork has been posted yet.</p>
             ) : (
-              posts.map((post) => <PostCard key={post.id} post={post} isRegistered={isRegistered} />)
+              posts.map((post) => (
+                <PostCard
+                  key={post.id}
+                  post={post}
+                  isRegistered={isRegistered}
+                  isMember={isMember}
+                />
+              ))
             )}
           </div>
         </section>

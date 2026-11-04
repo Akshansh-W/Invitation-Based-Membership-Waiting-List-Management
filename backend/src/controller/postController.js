@@ -144,11 +144,17 @@ export const addPostComment = async (req, res) => {
 
   try {
     const user = await User.findById(req.user.userId).select(
-      "account_status full_name"
+      "account_status full_name membership_status role"
     );
 
     if (!user || user.account_status !== "ACTIVE") {
       return res.status(403).json({ message: "Your account is not active." });
+    }
+
+    if (user.role !== "USER" || user.membership_status !== "MEMBER") {
+      return res.status(403).json({
+        message: "You must be an ArtSpace member to comment.",
+      });
     }
 
     const comment = {

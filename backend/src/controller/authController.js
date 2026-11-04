@@ -1,16 +1,37 @@
 import bcrypt from "bcryptjs";
+import crypto from "node:crypto";
+import mongoose from "mongoose";
 import User from "../models/User.js";
 import jwt from "jsonwebtoken";
 import Application from "../models/Application.js";
+import Invitation from "../models/Invitation.js";
+import InvitationRedemption from "../models/InvitationRedemption.js";
 
 export const registerUser = async (req, res) => {
   try {
-    const { fullName, email, phone, password } = req.body;
+    const { fullName, email, phone, password, referralCode } = req.body || {};
 
-
-    if (!fullName?.trim() || !email?.trim() || !phone?.trim() || !password) {
+    if (
+      typeof fullName !== "string" ||
+      typeof email !== "string" ||
+      typeof phone !== "string" ||
+      typeof password !== "string" ||
+      !fullName.trim() ||
+      !email.trim() ||
+      !phone.trim() ||
+      !password
+    ) {
       return res.status(400).json({
         message: "All fields are required.",
+      });
+    }
+
+    if (
+      referralCode !== undefined &&
+      (typeof referralCode !== "string" || referralCode.trim().length > 100)
+    ) {
+      return res.status(400).json({
+        message: "Please provide a valid referral code.",
       });
     }
 
@@ -39,15 +60,58 @@ export const registerUser = async (req, res) => {
 
     // Hash the password before storing it
     const passwordHash = await bcrypt.hash(password, 12);
-
-    const user = await User.create({
+    const normalizedReferralCode = referralCode?.trim();
+    const userData = {
       full_name: fullName.trim(),
       email_normalized: emailNormalized,
       phone_normalized: phoneNormalized,
       password_hash: passwordHash,
       role: "USER",
       account_status: "ACTIVE",
-    });
+      membership_status: normalizedReferralCode ? "MEMBER" : "NON_MEMBER",
+    };
+    let user;
+
+    if (normalizedReferralCode) {
+      const codeHash = crypto
+        .createHash("sha256")
+        .update(normalizedReferralCode.toUpperCase())
+        .digest("hex");
+      const session = await mongoose.startSession();
+
+      try {
+        await session.withTransaction(async () => {
+          const invitation = await Invitation.findOneAndUpdate(
+            {
+              code_hash: codeHash,
+              status: "ACTIVE",
+              expires_at: { $gt: new Date() },
+              $expr: { $lt: ["$used_count", "$max_uses"] },
+            },
+            { $inc: { used_count: 1 } },
+            { new: true, session }
+          );
+
+          if (!invitation) {
+            const error = new Error(
+              "Invalid, expired, revoked, or fully used referral code."
+            );
+            error.statusCode = 400;
+            throw error;
+          }
+
+          [user] = await User.create([userData], { session });
+          await InvitationRedemption.create(
+            [{ invitation_id: invitation._id, user_id: user._id }],
+            { session }
+          );
+        });
+      } finally {
+        await session.endSession();
+      }
+    } else {
+      user = await User.create(userData);
+    }
 
     return res.status(201).json({
       message: "Registration successful.",
@@ -57,11 +121,15 @@ export const registerUser = async (req, res) => {
         email: user.email_normalized,
         role: user.role,
         accountStatus: user.account_status,
-        membership_status : user.membership_status,
+        membership_status: user.membership_status,
         remaining_generations: user.remaining_generations,
       },
     });
   } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ message: error.message });
+    }
+
     // Handles duplicate-key errors if two requests race
     if (error.code === 11000) {
       return res.status(409).json({

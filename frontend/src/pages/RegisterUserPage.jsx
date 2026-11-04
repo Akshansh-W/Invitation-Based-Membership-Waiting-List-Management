@@ -10,6 +10,7 @@ export default function RegisterUserPage() {
     email: "",
     phone: "",
     password: "",
+    referralCode: "",
   });
 
   const [showPassword, setShowPassword] = useState(false);
@@ -40,6 +41,7 @@ export default function RegisterUserPage() {
           email: formData.email,
           phone: formData.phone,
           password: formData.password,
+          referralCode: formData.referralCode,
         }),
       });
 
@@ -48,16 +50,20 @@ export default function RegisterUserPage() {
       if (!response.ok) {
         throw new Error(data.message || "Registration failed.");
       }
-      console.log(data);
-
       const registeredUser = {
         id: data.user.id,
         fullName: data.user.fullName,
         email: data.user.email,
         role: data.user.role,
         accountStatus: data.user.accountStatus,
+        membership_status: data.user.membership_status,
       };
 
+      setSuccess(
+        data.user.membership_status === "MEMBER"
+          ? "Account created and referral verified. You are now an ArtSpace member."
+          : "Account created successfully. You can apply for membership at any time."
+      );
       setTimeout(() => {
         navigate("/login", {
           state: { user: registeredUser },
@@ -161,6 +167,23 @@ export default function RegisterUserPage() {
                   className="w-full rounded-xl border border-green-200 py-3 pl-10 pr-4 outline-none transition focus:border-green-600 focus:ring-4 focus:ring-green-100"
                 />
               </div>
+            </div>
+
+            <div>
+              <label htmlFor="referralCode" className="mb-2 block text-sm font-medium text-gray-700">
+                Referral code <span className="font-normal text-gray-500">(If you have any)</span>
+              </label>
+              <input
+                id="referralCode"
+                name="referralCode"
+                type="text"
+                maxLength={100}
+                autoComplete="off"
+                value={formData.referralCode}
+                onChange={handleChange}
+                placeholder="Enter your referral code"
+                className="w-full rounded-xl border border-green-200 px-4 py-3 outline-none transition focus:border-green-600 focus:ring-4 focus:ring-green-100"
+              />
             </div>
 
             <div>

@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   ArrowDownUp,
+  Check,
   ClipboardList,
+  Copy,
   LayoutDashboard,
   LogOut,
   Search,
@@ -73,23 +75,48 @@ export default function AdminDashboard() {
   const [memberSort, setMemberSort] = useState("newest");
   const [updatingId, setUpdatingId] = useState("");
   const [rejectionReasons, setRejectionReasons] = useState({});
+  const [adminReferralCode, setAdminReferralCode] = useState("");
+  const [isGeneratingReferral, setIsGeneratingReferral] = useState(false);
+  const [copiedReferral, setCopiedReferral] = useState(false);
 
   useEffect(() => {
     let active = true;
 
-    const endpoint = section === "applications"
-      ? "/applications"
+    const request = section === "applications"
+      ? adminRequest("/applications")
       : section === "referrals"
-        ? "/referrals"
-        : "/members";
+        ? adminRequest("/referrals")
+        : Promise.all([adminRequest("/members"), adminRequest("/referrals")]);
 
-    adminRequest(endpoint)
+    request
       .then((data) => {
         if (!active) return;
         setRequestError(null);
         if (section === "applications") setApplications(data.applications);
         else if (section === "referrals") setReferrals(data.referrals);
-        else setMembers(data.members);
+        else {
+          const [memberData, referralData] = data;
+          const issuedCodesByCreator = new Map();
+          for (const referral of referralData.referrals) {
+            const creatorEmail = referral.creator?.email?.toLowerCase();
+            if (creatorEmail) {
+              issuedCodesByCreator.set(
+                creatorEmail,
+                (issuedCodesByCreator.get(creatorEmail) || 0) + 1
+              );
+            }
+          }
+
+          setMembers(
+            memberData.members.map((member) => ({
+              ...member,
+              referral_codes:
+                member.referral_codes ??
+                issuedCodesByCreator.get(member.email.toLowerCase()) ??
+                0,
+            }))
+          );
+        }
       })
       .catch((requestError) => {
         if (active) {
@@ -170,6 +197,44 @@ export default function AdminDashboard() {
     }
   };
 
+  const generateAdminReferral = async () => {
+    setIsGeneratingReferral(true);
+    setAdminReferralCode("");
+    setCopiedReferral(false);
+    setRequestError(null);
+
+    try {
+      const data = await adminRequest("/referrals/generate", { method: "POST" });
+      setAdminReferralCode(data.referralCode);
+      const referralData = await adminRequest("/referrals");
+      setReferrals(referralData.referrals);
+    } catch (requestError) {
+      setRequestError({
+        section: "referrals",
+        message: requestError.message || "Unable to generate an administrator referral code.",
+      });
+      if (/session has expired|administrator access/i.test(requestError.message)) {
+        navigate("/admin/login", { replace: true });
+      }
+    } finally {
+      setIsGeneratingReferral(false);
+    }
+  };
+
+  const copyAdminReferral = async () => {
+    try {
+      await navigator.clipboard.writeText(adminReferralCode);
+      setCopiedReferral(true);
+      setRequestError(null);
+    } catch {
+      setRequestError({
+        section: "referrals",
+        message: "Unable to copy the code. Please copy it manually.",
+      });
+      setCopiedReferral(false);
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem("token");
     navigate("/");
@@ -243,6 +308,9 @@ export default function AdminDashboard() {
               <div>
                 <h2 className="text-lg font-semibold text-gray-900">ArtSpace Members</h2>
                 <p className="mt-1 text-sm text-gray-500">{members.length} members</p>
+                <p className="mt-1 text-xs text-gray-500">
+                  Successful invites total redemptions across a member&apos;s codes; Referral Management shows each code separately.
+                </p>
               </div>
               <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
                 <label className="relative">
@@ -257,15 +325,15 @@ export default function AdminDashboard() {
                   />
                 </label>
                 <label>
-                  <span className="sr-only">Filter members by referral usage</span>
+                  <span className="sr-only">Filter members by successful invites</span>
                   <select
                     value={referralFilter}
                     onChange={(event) => setReferralFilter(event.target.value)}
                     className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-green-600"
                   >
-                    <option value="ALL">All referrals</option>
-                    <option value="USED">Referrals used</option>
-                    <option value="UNUSED">No referrals used</option>
+                    <option value="ALL">All successful invites</option>
+                    <option value="USED">Has successful invites</option>
+                    <option value="UNUSED">No successful invites</option>
                   </select>
                 </label>
                 <label className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm">
@@ -297,7 +365,8 @@ export default function AdminDashboard() {
                       <th className="px-3 py-3 font-semibold">Member</th>
                       <th className="px-3 py-3 font-semibold">Status</th>
                       <th className="px-3 py-3 font-semibold">Registered</th>
-                      <th className="px-3 py-3 font-semibold">Referrals used</th>
+                      <th className="px-3 py-3 font-semibold">Codes issued</th>
+                      <th className="px-3 py-3 font-semibold">Successful invites</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -313,6 +382,7 @@ export default function AdminDashboard() {
                           </span>
                         </td>
                         <td className="px-3 py-4 text-gray-600">{formatDate(member.registered_at)}</td>
+                        <td className="px-3 py-4 font-medium text-gray-800">{member.referral_codes}</td>
                         <td className="px-3 py-4 font-medium text-gray-800">{member.referrals_used}</td>
                       </tr>
                     ))}
@@ -457,10 +527,38 @@ export default function AdminDashboard() {
 
         {section === "referrals" && (
           <section className="rounded-2xl bg-white p-4 shadow-sm sm:p-6">
-            <div className="mb-5">
-              <h2 className="text-lg font-semibold text-gray-900">Referral activity</h2>
-              <p className="mt-1 text-sm text-gray-500">Usage is counted from saved referral redemption records. Referral codes are stored securely as hashes.</p>
+            <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Referral activity</h2>
+                <p className="mt-1 text-sm text-gray-500">Each row shows usage for one code. Member totals combine successful redemptions across all codes issued by that member. Referral codes are stored securely as hashes.</p>
+              </div>
+              <button
+                type="button"
+                onClick={generateAdminReferral}
+                disabled={loading || isGeneratingReferral}
+                className="rounded-lg bg-green-800 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-900 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isGeneratingReferral ? "Generating..." : "Generate referral code"}
+              </button>
             </div>
+
+            {adminReferralCode && (
+              <div role="status" className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-green-200 bg-green-50 p-4">
+                <div>
+                  <p className="text-sm font-semibold text-green-900">New one-use referral code</p>
+                  <p className="mt-1 font-mono text-lg tracking-wider text-green-950">{adminReferralCode}</p>
+                  <p className="mt-1 text-xs text-green-800">Share this code now; it is only shown once and expires in 90 days.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={copyAdminReferral}
+                  className="flex items-center gap-2 rounded-lg border border-green-300 bg-white px-3 py-2 text-sm font-semibold text-green-900 hover:bg-green-100"
+                >
+                  {copiedReferral ? <Check size={16} /> : <Copy size={16} />}
+                  {copiedReferral ? "Copied" : "Copy code"}
+                </button>
+              </div>
+            )}
 
             {loading ? (
               <p className="py-12 text-center text-sm text-gray-500">Loading referrals...</p>

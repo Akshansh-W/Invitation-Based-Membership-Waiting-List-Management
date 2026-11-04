@@ -2,7 +2,7 @@ import { useState } from "react";
 import { MessageCircle, Users, X, Send } from "lucide-react";
 import backendUrl from "@/config/api.js";
 
-export default function PostCard({ post, isRegistered }) {
+export default function PostCard({ post, isRegistered, isMember }) {
   const [liked, setLiked] = useState(Boolean(post.likedByCurrentUser));
   const [likes, setLikes] = useState(post.likes || 0);
   const [showComments, setShowComments] = useState(false);
@@ -52,7 +52,7 @@ export default function PostCard({ post, isRegistered }) {
   const handleCommentSubmit = async (e) => {
     e.preventDefault();
 
-    if (!commentText.trim() || !isRegistered) return;
+    if (!commentText.trim() || !isMember) return;
 
     const token = localStorage.getItem("token");
     if (!token) {
@@ -182,25 +182,31 @@ export default function PostCard({ post, isRegistered }) {
                     </div>
 
                     {/* Comment input */}
-                    <form onSubmit={handleCommentSubmit} className="flex items-center gap-2 border-t border-gray-100 p-3">
-                      <input
-                        type="text"
-                        value={commentText}
-                        onChange={(e) => setCommentText(e.target.value)}
-                        placeholder="Add a comment..."
-                        maxLength={1000}
-                        className="min-w-0 flex-1 rounded-full border border-gray-200 px-3 py-2 text-sm outline-none focus:border-green-600"
-                      />
+                    {isMember ? (
+                      <form onSubmit={handleCommentSubmit} className="flex items-center gap-2 border-t border-gray-100 p-3">
+                        <input
+                          type="text"
+                          value={commentText}
+                          onChange={(e) => setCommentText(e.target.value)}
+                          placeholder="Add a comment..."
+                          maxLength={1000}
+                          className="min-w-0 flex-1 rounded-full border border-gray-200 px-3 py-2 text-sm outline-none focus:border-green-600"
+                        />
 
-                      <button
-                        type="submit"
-                        disabled={!commentText.trim() || isSubmittingComment}
-                        aria-label="Send comment"
-                        className="rounded-full p-2 text-green-800 transition hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        {isSubmittingComment ? <span className="text-xs">...</span> : <Send size={18} />}
-                      </button>
-                    </form>
+                        <button
+                          type="submit"
+                          disabled={!commentText.trim() || isSubmittingComment}
+                          aria-label="Send comment"
+                          className="rounded-full p-2 text-green-800 transition hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          {isSubmittingComment ? <span className="text-xs">...</span> : <Send size={18} />}
+                        </button>
+                      </form>
+                    ) : (
+                      <p className="border-t border-gray-100 p-3 text-center text-xs text-gray-500">
+                        Only ArtSpace members can add comments.
+                      </p>
+                    )}
                   </section>
                 </>
               )}
